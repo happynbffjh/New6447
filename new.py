@@ -94,7 +94,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     keyboard = [
         [InlineKeyboardButton("✉️ Contact Owner", url="https://t.me/XD_HR")],
-        [InlineKeyboardButton("🚀 Join Channel", url="https://t.me/+wBWZToLvKmBkNDQ1")]
+        [InlineKeyboardButton("🚀 Join Channel", url="https://t.me/+tttfU52Nm3xkNDA1")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
