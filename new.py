@@ -1,4 +1,4 @@
-GIVEAWAYAY asyncio
+import asyncio
 import json
 import logging
 import os
@@ -31,12 +31,11 @@ from telegram.ext import (
 # Replace with your bot token (or keep as env var)
 REQUIRED_CHANNEL = -1002710971355
 
-BOT_TOKEN = os.getenv("GIVEAWAY_BOT_TOKEN", "7875476980:AAGLYnxaDGgjQLELbDRsdgR6aC1wCIDwOCk")
+BOT_TOKEN = os.getenv("GIVEAWAY_BOT_TOKEN", "8225591291:AAHhuIJkWDpz91CoJ6WD_bmIIWmcFhDhVVU")
 
 # Admin IDs - update as needed
 ADMIN_IDS: List[int] = [
     6284479489,  # primary
-    8428346442
 ]
 
 DATA_FILE = "giveaway_data.json"
@@ -217,7 +216,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         save_data(data)
 
     welcome_message = (
-        "☁️ *WELCOME TO HEXBREAK VALUT GIVEWAY BOT* ☁️\n\n"
+        "☁️ *WELCOME TO HEXBREAK VAULT GIVEWAY BOT* ☁️\n\n"
         "☠️ *Claim Your Rewards Now!* ☠️\n\n"
         "How to redeem:\n"
         "• Send `/redeem <CODE>` (example: PREFIX-ABCD-1234-XYZ9)\n"
