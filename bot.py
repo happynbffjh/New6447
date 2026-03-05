@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7972038760:AAEXOmE44KVDTY5xLVVUi9MMuWF2CbIKYYo")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8252702666:AAEKVanQAvxLZJMl1kAcDb-3_luVeach8_0")
 OWNER_USER_ID = "6284479489"
 
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1002710971355"))
@@ -32,8 +32,8 @@ PRIVATE_CHANNEL_LINK = os.environ.get("PRIVATE_CHANNEL_LINK", "https://t.me/+ttt
 DOWNLOAD_DIR = "downloads"
 RESULTS_DIR = "results"
 TIMEOUT_REQUEST = 10
-WORKER_COUNT = 30
-MAX_WORKERS = 100
+WORKER_COUNT = 10
+MAX_WORKERS = 50
 PROXY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'proxy.json')
 
 CE = {
@@ -267,7 +267,7 @@ def save_banned():
 
 load_banned()
 
-thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
+thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=WORKER_COUNT)
 
 LOCK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lock_state.json')
 bot_locked = False
@@ -1125,7 +1125,7 @@ def format_full_result(source_label, account_info, login_url, cookie_line, andro
         f"\u251c \u23f0 Generated: {generated_str}\n"
         f"\u251c \U0001f4c5 Expires: {expires_str}\n"
         f"\u251c \u23f3 Remaining: 0d 1h 0m 0s\n"
-        f"\u251c \U0001f4f1 Phone Login:\n{phone_login_text}\n\n"
+        f"\u251c \U0001f4f1 Phone Login:\n{phone_login_text}\n"
         f"\u2514 \U0001f5a5\ufe0f PC Login:\n{login_url}\n\n"
         f"\U0001f36a Cookie: {cookie_line}\n\n"
         f"\U0001f451 Bot Owner: @XD_HR"
@@ -2942,7 +2942,6 @@ async def process_batch_check_async(bot, message, cookies, source_name, file_siz
         i, cookie_line = args
         if stop_flags.get(user_id, {}).get("action") in ["stop", "cancel"]:
             return None
-        time.sleep(0.5)
         label = f"{source_name}_cookie_{i + 1}"
         result, err = check_and_generate(cookie_line, label)
         return (i, result, err)
@@ -2988,29 +2987,39 @@ async def process_batch_check_async(bot, message, cookies, source_name, file_siz
     loop = asyncio.get_event_loop()
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=WORKER_COUNT) as executor:
-            futures = [loop.run_in_executor(executor, process_single, (i, c)) for i, c in enumerate(cookies)]
-            for coro in asyncio.as_completed(futures):
-                result_tuple = await coro
-                if result_tuple:
-                    i, result, err = result_tuple
-                    async with results_lock:
-                        batch_tasks[task_id]["processed"] += 1
-                        if result:
-                            batch_tasks[task_id]["hits"] += 1
-                            all_results.append(result)
-                        elif err and ('Timeout' in str(err) or 'Network' in str(err) or 'Error:' in str(err) or 'HTTP 5' in str(err) or 'HTTP 429' in str(err) or 'Connection' in str(err)):
-                            batch_tasks[task_id]["errors"] += 1
-                            batch_tasks[task_id]["failed"] += 1
-                        else:
-                            batch_tasks[task_id]["failed"] += 1
-                else:
-                    async with results_lock:
-                        batch_tasks[task_id]["processed"] += 1
-                        batch_tasks[task_id]["failed"] += 1
-
-                await update_progress()
+            pending = set()
+            idx = 0
+            while idx < len(cookies) or pending:
                 if stop_flags.get(user_id, {}).get("action") in ["stop", "cancel"]:
+                    for p in pending:
+                        p.cancel()
                     break
+                while len(pending) < WORKER_COUNT and idx < len(cookies):
+                    fut = loop.run_in_executor(executor, process_single, (idx, cookies[idx]))
+                    pending.add(fut)
+                    idx += 1
+                if not pending:
+                    break
+                done, pending = await asyncio.wait(pending, timeout=1.0, return_when=asyncio.FIRST_COMPLETED)
+                for coro in done:
+                    result_tuple = coro.result()
+                    if result_tuple:
+                        i, result, err = result_tuple
+                        async with results_lock:
+                            batch_tasks[task_id]["processed"] += 1
+                            if result:
+                                batch_tasks[task_id]["hits"] += 1
+                                all_results.append(result)
+                            elif err and ('Timeout' in str(err) or 'Network' in str(err) or 'Error:' in str(err) or 'HTTP 5' in str(err) or 'HTTP 429' in str(err) or 'Connection' in str(err)):
+                                batch_tasks[task_id]["errors"] += 1
+                                batch_tasks[task_id]["failed"] += 1
+                            else:
+                                batch_tasks[task_id]["failed"] += 1
+                    else:
+                        async with results_lock:
+                            batch_tasks[task_id]["processed"] += 1
+                            batch_tasks[task_id]["failed"] += 1
+                    await update_progress()
 
         await update_progress(force=True)
         stop_info = stop_flags.get(user_id, {})
@@ -3261,7 +3270,6 @@ async def process_zip_file_async(bot, message, zip_bytes, zip_name):
         i, (src_file, cookie_line) = args
         if stop_flags.get(user_id, {}).get("action") in ["stop", "cancel"]:
             return None
-        time.sleep(0.5)
         base_name = os.path.basename(src_file).replace('.txt', '')
         label = f"{base_name}_cookie_{i + 1}"
         logger.info(f"[ZIP-BATCH] Worker starting cookie #{i+1}/{total}: {label}")
@@ -3333,30 +3341,40 @@ async def process_zip_file_async(bot, message, zip_bytes, zip_name):
     loop = asyncio.get_event_loop()
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=WORKER_COUNT) as executor:
-            futures = [loop.run_in_executor(executor, process_single, (i, cd)) for i, cd in enumerate(all_cookies)]
-            for coro in asyncio.as_completed(futures):
-                result_tuple = await coro
-                if result_tuple:
-                    i, src_file, result, err = result_tuple
-                    async with results_lock:
-                        batch_tasks[task_id]["processed"] += 1
-                        if result:
-                            batch_tasks[task_id]["hits"] += 1
-                            all_results.append((src_file, result))
-                            batch_tasks[task_id]["results"].append(result)
-                        elif err and ('Timeout' in str(err) or 'Network' in str(err) or 'Error:' in str(err) or 'HTTP 5' in str(err) or 'HTTP 429' in str(err) or 'Connection' in str(err)):
-                            batch_tasks[task_id]["errors"] += 1
-                            batch_tasks[task_id]["failed"] += 1
-                        else:
-                            batch_tasks[task_id]["failed"] += 1
-                else:
-                    async with results_lock:
-                        batch_tasks[task_id]["processed"] += 1
-                        batch_tasks[task_id]["failed"] += 1
-
-                await update_progress()
+            pending = set()
+            idx = 0
+            while idx < len(all_cookies) or pending:
                 if stop_flags.get(user_id, {}).get("action") in ["stop", "cancel"]:
+                    for p in pending:
+                        p.cancel()
                     break
+                while len(pending) < WORKER_COUNT and idx < len(all_cookies):
+                    fut = loop.run_in_executor(executor, process_single, (idx, all_cookies[idx]))
+                    pending.add(fut)
+                    idx += 1
+                if not pending:
+                    break
+                done, pending = await asyncio.wait(pending, timeout=1.0, return_when=asyncio.FIRST_COMPLETED)
+                for coro in done:
+                    result_tuple = coro.result()
+                    if result_tuple:
+                        i, src_file, result, err = result_tuple
+                        async with results_lock:
+                            batch_tasks[task_id]["processed"] += 1
+                            if result:
+                                batch_tasks[task_id]["hits"] += 1
+                                all_results.append((src_file, result))
+                                batch_tasks[task_id]["results"].append(result)
+                            elif err and ('Timeout' in str(err) or 'Network' in str(err) or 'Error:' in str(err) or 'HTTP 5' in str(err) or 'HTTP 429' in str(err) or 'Connection' in str(err)):
+                                batch_tasks[task_id]["errors"] += 1
+                                batch_tasks[task_id]["failed"] += 1
+                            else:
+                                batch_tasks[task_id]["failed"] += 1
+                    else:
+                        async with results_lock:
+                            batch_tasks[task_id]["processed"] += 1
+                            batch_tasks[task_id]["failed"] += 1
+                    await update_progress()
     finally:
         batch_tasks[task_id]["active"] = False
         watchdog_task.cancel()
